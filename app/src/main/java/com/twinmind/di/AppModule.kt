@@ -12,6 +12,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.google.gson.Gson
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -34,4 +35,8 @@ object AppModule {
 
     @Provides
     fun provideSummaryDao(db: TwinMindDatabase): SummaryDao = db.summaryDao()
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson = Gson()
 }
