@@ -95,6 +95,8 @@ dependencies {
     // Gemini
     implementation(libs.generativeai)
 
+    // BroadCastManager
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
