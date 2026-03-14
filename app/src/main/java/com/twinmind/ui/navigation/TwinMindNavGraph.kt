@@ -1,9 +1,14 @@
 package com.twinmind.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.twinmind.ui.dashboard.DashboardScreen
+import com.twinmind.ui.recording.RecordingScreen
+import com.twinmind.ui.summary.SummaryScreen
 
 sealed class Screen(val route: String) {
     object Dashboard : Screen("dashboard")
@@ -23,13 +28,21 @@ fun TwinMindNavGraph() {
         startDestination = Screen.Dashboard.route
     ) {
         composable(Screen.Dashboard.route) {
-            // DashboardScreen(navController) — coming soon
+            DashboardScreen(navController = navController)
         }
-        composable(Screen.Recording.route) {
-            // RecordingScreen(navController) — coming soon
+        composable(
+            route = Screen.Recording.route,
+            arguments = listOf(navArgument("meetingId") { type = NavType.StringType })
+        ) { backStack ->
+            val meetingId = backStack.arguments?.getString("meetingId") ?: ""
+            RecordingScreen(navController = navController, meetingId = meetingId)
         }
-        composable(Screen.Summary.route) {
-            // SummaryScreen(navController) — coming soon
+        composable(
+            route = Screen.Summary.route,
+            arguments = listOf(navArgument("meetingId") { type = NavType.StringType })
+        ) { backStack ->
+            val meetingId = backStack.arguments?.getString("meetingId") ?: ""
+            SummaryScreen(navController = navController, meetingId = meetingId)
         }
     }
 }
