@@ -15,6 +15,7 @@ import com.twinmind.domain.model.PauseReason
 import com.twinmind.domain.model.RecordingState
 import com.twinmind.util.AudioUtils
 import com.twinmind.util.Constants
+import com.twinmind.worker.FinalizeRecordingWorker
 import com.twinmind.worker.TranscriptionWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -91,6 +92,12 @@ class RecordingService : Service() {
                         this@RecordingService, meetingId
                     ).absolutePath
                 )
+            )
+            // Enqueue finalize worker immediately as safety net for process death
+            FinalizeRecordingWorker.enqueue(
+                this@RecordingService,
+                meetingId,
+                AudioUtils.getRecordingsDir(this@RecordingService, meetingId).absolutePath
             )
         }
 
@@ -233,6 +240,7 @@ class RecordingService : Service() {
                     endTime = System.currentTimeMillis(),
                     duration = elapsedMs
                 )
+                FinalizeRecordingWorker.cancel(this@RecordingService, meetingId)
             } catch (e: Exception) {
                 Log.e("RecordingService", "Error stopping recording: ${e.message}")
             }
