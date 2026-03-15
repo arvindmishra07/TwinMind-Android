@@ -25,7 +25,7 @@ android {
             localPropertiesFile.inputStream().use { properties.load(it) }
         }
         val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
-        buildConfigField("String", "GEMINI_API_KEY", "\"AIzaSyD6hz0orTMTF176Hx9q8h4PVd9vPhFeCOY\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"AIzaSyBrobG-k89yiWR6A9oRboQaq35flsCYBMc\"")
     }
 
     buildTypes {
