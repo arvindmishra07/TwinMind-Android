@@ -1,8 +1,14 @@
 package com.twinmind.ui.summary
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -62,7 +68,7 @@ fun SummaryScreen(
             )
 
             when {
-                uiState.isLoading -> LoadingState()
+                uiState.isLoading -> LoadingState(streamingText = uiState.streamingText)
                 uiState.errorMessage != null -> ErrorState(
                     message = uiState.errorMessage!!,
                     onRetry = { viewModel.retrySummary(meetingId) }
@@ -71,7 +77,7 @@ fun SummaryScreen(
                     summary = uiState.summary!!,
                     transcript = uiState.fullTranscript
                 )
-                else -> LoadingState()
+                else -> LoadingState(streamingText = uiState.streamingText)
             }
         }
     }
@@ -117,12 +123,15 @@ fun SummaryTopBar(
 }
 
 @Composable
-fun LoadingState() {
+fun LoadingState(streamingText: String = "") {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
     ) {
+        Spacer(modifier = Modifier.height(40.dp))
         CircularProgressIndicator(
             color = TwinMindAccentBlue,
             modifier = Modifier.size(48.dp),
@@ -140,6 +149,53 @@ fun LoadingState() {
             style = MaterialTheme.typography.bodySmall,
             color = TwinMindTextTertiary
         )
+
+        // Show streaming text as it comes in
+        if (streamingText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = TwinMindCardBg),
+                border = BorderStroke(1.dp, TwinMindCardBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Blinking cursor indicator
+                        val infiniteTransition = rememberInfiniteTransition(label = "cursor")
+                        val alpha by infiniteTransition.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(500),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "blink"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(TwinMindAccentBlue.copy(alpha = alpha))
+                        )
+                        Text(
+                            text = "AI is writing...",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TwinMindAccentBlue
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = streamingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TwinMindTextSecondary
+                    )
+                }
+            }
+        }
     }
 }
 

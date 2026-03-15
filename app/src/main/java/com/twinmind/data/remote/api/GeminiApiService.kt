@@ -1,17 +1,28 @@
 package com.twinmind.data.remote.api
 
 import com.google.gson.annotations.SerializedName
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 interface GeminiApiService {
 
-    @POST("v1beta/models/gemini-2.0-flash-lite:generateContent")
+    @POST("v1beta/models/gemini-2.0-flash:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
     ): GeminiResponse
+
+    @Streaming
+    @POST("v1beta/models/gemini-2.0-flash:streamGenerateContent")
+    suspend fun streamGenerateContent(
+        @Query("key") apiKey: String,
+        @Query("alt") alt: String,
+        @Body request: GeminiRequest
+    ): Response<ResponseBody>
 }
 
 // Request models
@@ -35,7 +46,7 @@ data class GeminiPart(
 data class InlineData(
     @SerializedName("mime_type")
     val mimeType: String,
-    val data: String // base64
+    val data: String
 )
 
 data class GenerationConfig(
