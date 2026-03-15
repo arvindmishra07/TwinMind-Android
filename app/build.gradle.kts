@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.twinmind"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.twinmind"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons)
+    implementation("androidx.core:core:1.16.0")
 
     // Hilt
     implementation(libs.hilt.android)

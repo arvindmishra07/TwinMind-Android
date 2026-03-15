@@ -35,7 +35,7 @@ class RecordingService : Service() {
     private var audioFocusHandler: AudioFocusHandler? = null
     private var headsetReceiver: HeadsetReceiver? = null
     private var phoneCallReceiver: PhoneCallReceiver? = null
-
+    private var liveUpdateManager: LiveUpdateManager? = null
     private var currentMeetingId: String? = null
     private var recordingState: RecordingState = RecordingState.Idle
     private var startTimeMs = 0L
@@ -47,6 +47,7 @@ class RecordingService : Service() {
     override fun onCreate() {
         super.onCreate()
         notificationHelper = NotificationHelper(this)
+        liveUpdateManager = LiveUpdateManager(this)
         setupAudioFocusHandler()
         setupHeadsetReceiver()
         setupPhoneCallReceiver()
@@ -206,7 +207,9 @@ class RecordingService : Service() {
         timerJob?.cancel()
 
         val meetingId = currentMeetingId ?: run {
-            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (e: Exception) { }
+            try { stopForeground(STOP_FOREGROUND_REMOVE)
+                liveUpdateManager?.cancelLiveUpdate()}
+            catch (e: Exception) { }
             stopSelf()
             return
         }
@@ -293,10 +296,28 @@ class RecordingService : Service() {
                 if (state is RecordingState.Recording) {
                     recordingState = state.copy(elapsedMs = elapsedMs)
                 }
-                notificationHelper?.updateNotification(
-                    getStatusText(),
-                    formatElapsed()
-                )
+
+                val timer = formatElapsed()
+                val statusText = getStatusText()
+                val isPaused = recordingState is RecordingState.Paused
+
+                // Update foreground notification
+                notificationHelper?.updateNotification(statusText, timer, isPaused)
+
+                // Update Android 16 live update on lock screen
+                liveUpdateManager?.buildLiveUpdateNotification(
+                    timer = timer,
+                    status = statusText,
+                    isPaused = isPaused
+                )?.let { liveNotification ->
+                    val nm = getSystemService(NOTIFICATION_SERVICE)
+                            as android.app.NotificationManager
+                    nm.notify(
+                        LiveUpdateManager.LIVE_UPDATE_NOTIFICATION_ID,
+                        liveNotification
+                    )
+                }
+
                 broadcastState(recordingState)
             }
         }
