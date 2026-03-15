@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.twinmind.data.local.dao.AudioChunkDao
 import com.twinmind.data.local.dao.MeetingDao
@@ -52,8 +53,8 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            Constants.ACTION_START_RECORDING -> startRecording()
-            Constants.ACTION_STOP_RECORDING -> stopRecording()
+            Constants.ACTION_START_RECORDING -> serviceScope.launch { startRecording() }
+            Constants.ACTION_STOP_RECORDING -> serviceScope.launch { stopRecording() }
             Constants.ACTION_PAUSE_RECORDING -> {
                 val reason = intent.getStringExtra("reason")
                 if (reason == "PHONE_CALL") pauseForPhoneCall()
@@ -69,7 +70,7 @@ class RecordingService : Service() {
         return START_STICKY
     }
 
-    private fun startRecording() {
+    private suspend fun startRecording() {
         if (!AudioUtils.hasEnoughStorage(this)) {
             broadcastState(RecordingState.Error("Recording stopped - Low storage"))
             stopSelf()
@@ -116,18 +117,23 @@ class RecordingService : Service() {
 
     private fun handleChunkReady(file: File, index: Int, meetingId: String) {
         serviceScope.launch {
-            val chunkId = UUID.randomUUID().toString()
-            audioChunkDao.insert(
-                AudioChunkEntity(
-                    id = chunkId,
-                    meetingId = meetingId,
-                    chunkIndex = index,
-                    filePath = file.absolutePath,
-                    startTime = System.currentTimeMillis()
+            try {
+                val chunkId = UUID.randomUUID().toString()
+                audioChunkDao.insert(
+                    AudioChunkEntity(
+                        id = chunkId,
+                        meetingId = meetingId,
+                        chunkIndex = index,
+                        filePath = file.absolutePath,
+                        startTime = System.currentTimeMillis()
+                    )
                 )
-            )
-            // Enqueue transcription for this chunk
-            TranscriptionWorker.enqueue(this@RecordingService, chunkId, meetingId)
+                // Stagger requests by chunk index to avoid rate limiting
+                kotlinx.coroutines.delay(index * 3000L)
+                TranscriptionWorker.enqueue(this@RecordingService, chunkId, meetingId)
+            } catch (e: Exception) {
+                Log.e("RecordingService", "Error handling chunk: ${e.message}")
+            }
         }
     }
 
@@ -191,45 +197,58 @@ class RecordingService : Service() {
 
     private fun stopRecording() {
         timerJob?.cancel()
-        val lastFile = chunkRecorder?.stopRecording()
-        val meetingId = currentMeetingId ?: run { stopSelf(); return }
 
-        // Handle last chunk
-        lastFile?.let { file ->
-            if (file.exists() && file.length() > 0) {
-                serviceScope.launch {
-                    val chunkId = UUID.randomUUID().toString()
-                    val nextIndex = (chunkRecorder?.getCurrentChunkIndex() ?: 0)
-                    audioChunkDao.insert(
-                        AudioChunkEntity(
-                            id = chunkId,
-                            meetingId = meetingId,
-                            chunkIndex = nextIndex,
-                            filePath = file.absolutePath,
-                            startTime = System.currentTimeMillis()
-                        )
-                    )
-                    TranscriptionWorker.enqueue(this@RecordingService, chunkId, meetingId)
-                }
-            }
+        val meetingId = currentMeetingId ?: run {
+            try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (e: Exception) { }
+            stopSelf()
+            return
         }
 
         serviceScope.launch {
-            meetingDao.updateMeetingStatus(
-                id = meetingId,
-                status = "COMPLETED",
-                endTime = System.currentTimeMillis(),
-                duration = elapsedMs
-            )
+            try {
+                val lastFile = chunkRecorder?.stopRecording()
+
+                lastFile?.let { file ->
+                    if (file.exists() && file.length() > 0) {
+                        val chunkId = UUID.randomUUID().toString()
+                        val nextIndex = (chunkRecorder?.getCurrentChunkIndex() ?: 0)
+                        audioChunkDao.insert(
+                            AudioChunkEntity(
+                                id = chunkId,
+                                meetingId = meetingId,
+                                chunkIndex = nextIndex,
+                                filePath = file.absolutePath,
+                                startTime = System.currentTimeMillis()
+                            )
+                        )
+                        // Add small delay between chunks to avoid rate limit
+                        kotlinx.coroutines.delay(2000)
+                        TranscriptionWorker.enqueue(this@RecordingService, chunkId, meetingId)
+                    }
+                }
+
+                meetingDao.updateMeetingStatus(
+                    id = meetingId,
+                    status = "COMPLETED",
+                    endTime = System.currentTimeMillis(),
+                    duration = elapsedMs
+                )
+            } catch (e: Exception) {
+                Log.e("RecordingService", "Error stopping recording: ${e.message}")
+            }
         }
 
         audioFocusHandler?.abandonFocus()
         recordingState = RecordingState.Stopped(meetingId)
         broadcastState(recordingState)
-        stopForeground(STOP_FOREGROUND_REMOVE)
+
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            Log.e("RecordingService", "Error stopping foreground: ${e.message}")
+        }
         stopSelf()
     }
-
     private fun setupAudioFocusHandler() {
         audioFocusHandler = AudioFocusHandler(
             context = this,

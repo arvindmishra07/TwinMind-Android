@@ -18,11 +18,14 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField(
-            "String",
-            "GEMINI_API_KEY",
-            "\"${project.findProperty("GEMINI_API_KEY") ?: ""}\""
-        )
+        // Read API key from local.properties
+        val properties = org.jetbrains.kotlin.konan.properties.Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.inputStream().use { properties.load(it) }
+        }
+        val geminiApiKey = properties.getProperty("GEMINI_API_KEY") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"AIzaSyD6hz0orTMTF176Hx9q8h4PVd9vPhFeCOY\"")
     }
 
     buildTypes {
@@ -98,8 +101,6 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
-    // Gemini
-    implementation(libs.generativeai)
 
     // BroadCastManager
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")

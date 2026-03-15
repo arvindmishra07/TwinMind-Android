@@ -30,8 +30,18 @@ fun SummaryScreen(
     LaunchedEffect(meetingId) {
         viewModel.loadMeeting(meetingId)
     }
-
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Trigger summary generation if nothing is happening
+    LaunchedEffect(uiState.isLoading) {
+        if (uiState.isLoading && uiState.summary == null) {
+            kotlinx.coroutines.delay(3000)
+            if (uiState.summary == null ||
+                uiState.summary?.status == com.twinmind.domain.model.SummaryStatus.PENDING) {
+                viewModel.generateSummaryNow(meetingId)
+            }
+        }
+    }
+
 
     Box(
         modifier = Modifier

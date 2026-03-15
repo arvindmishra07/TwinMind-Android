@@ -57,11 +57,16 @@ class TranscriptionWorker @AssistedInject constructor(
 
         Log.d(TAG, "Starting transcription for chunk: $chunkId")
 
+        // Add delay based on attempt count to avoid rate limiting
+        if (runAttemptCount > 0) {
+            val delayMs = (runAttemptCount * 15000L)
+            Log.d(TAG, "Waiting ${delayMs}ms before retry attempt $runAttemptCount")
+            kotlinx.coroutines.delay(delayMs)
+        }
+
         return try {
-            // Mark as processing
             audioChunkDao.updateTranscriptionStatus(chunkId, "PROCESSING", null)
 
-            // Find chunk
             val chunks = audioChunkDao.getChunksForMeeting(meetingId)
             val chunk = chunks.find { it.id == chunkId }
                 ?: run {
@@ -69,25 +74,19 @@ class TranscriptionWorker @AssistedInject constructor(
                     return Result.failure()
                 }
 
-            // Transcribe
             val transcript = transcriptionRepository.transcribeChunk(chunk.filePath)
-
-            // Save result
             audioChunkDao.updateTranscriptionStatus(chunkId, "COMPLETED", transcript)
             Log.d(TAG, "Transcription completed for chunk: $chunkId")
 
-            // Check if all chunks for this meeting are done
             checkAndTriggerSummary(meetingId)
-
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Transcription failed for chunk $chunkId: ${e.message}")
             audioChunkDao.incrementRetryCount(chunkId)
             audioChunkDao.updateTranscriptionStatus(chunkId, "FAILED", null)
-            if (runAttemptCount < 3) Result.retry() else Result.failure()
+            if (runAttemptCount < 5) Result.retry() else Result.failure()
         }
     }
-
     private suspend fun checkAndTriggerSummary(meetingId: String) {
         val meeting = meetingDao.getMeetingById(meetingId) ?: return
 

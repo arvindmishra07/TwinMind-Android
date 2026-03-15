@@ -8,9 +8,9 @@ data class SummaryEntity(
     @PrimaryKey val meetingId: String,
     val title: String = "",
     val summary: String = "",
-    val actionItems: String = "", // JSON array stored as string
-    val keyPoints: String = "",   // JSON array stored as string
-    val status: String = "PENDING", // PENDING, GENERATING, COMPLETED, FAILED
+    val actionItems: String = "[]",
+    val keyPoints: String = "[]",
+    val status: String = "PENDING",
     val errorMessage: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

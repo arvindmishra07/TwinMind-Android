@@ -1,13 +1,16 @@
 package com.twinmind.di
 
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.generationConfig
 import com.twinmind.BuildConfig
+import com.twinmind.data.remote.api.GeminiApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Named
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -16,25 +19,27 @@ object GeminiModule {
 
     @Provides
     @Singleton
-    @Named("transcription")
-    fun provideTranscriptionModel(): GenerativeModel =
-        GenerativeModel(
-            modelName = "gemini-2.5-flash-preview-04-17",
-            apiKey = BuildConfig.GEMINI_API_KEY,
-            generationConfig = generationConfig {
-                temperature = 0f
-            }
-        )
+    fun provideGeminiOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .build()
 
     @Provides
     @Singleton
-    @Named("summary")
-    fun provideSummaryModel(): GenerativeModel =
-        GenerativeModel(
-            modelName = "gemini-2.5-flash-preview-04-17",
-            apiKey = BuildConfig.GEMINI_API_KEY,
-            generationConfig = generationConfig {
-                temperature = 0.7f
-            }
-        )
+    fun provideGeminiRetrofit(okHttpClient: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://generativelanguage.googleapis.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideGeminiApiService(retrofit: Retrofit): GeminiApiService =
+        retrofit.create(GeminiApiService::class.java)
 }
