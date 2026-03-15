@@ -62,11 +62,12 @@ class SummaryRepository @Inject constructor(
                 request = request
             )
 
+            Log.d(TAG, "Stream response code: ${streamResponse.code()}")
+
             if (streamResponse.isSuccessful) {
                 val rawText = StringBuilder()
                 val body = streamResponse.body()
 
-                // Read stream — NO suspend calls inside forEachLine
                 body?.byteStream()?.bufferedReader()?.use { reader ->
                     reader.forEachLine { line ->
                         if (line.startsWith("data: ")) {
@@ -82,7 +83,6 @@ class SummaryRepository @Inject constructor(
                                     ?.text ?: ""
                                 if (text.isNotEmpty()) {
                                     rawText.append(text)
-                                    // Only update StateFlow here — no suspend calls
                                     streamingText.value = rawText.toString()
                                 }
                             } catch (e: Exception) {
@@ -92,13 +92,18 @@ class SummaryRepository @Inject constructor(
                     }
                 }
 
-                // NOW we can call suspend functions — outside the lambda
                 val finalText = rawText.toString()
                 savePartialSummary(meetingId, finalText)
                 Log.d(TAG, "Streaming complete, total length: ${finalText.length}")
-                parseAndSave(meetingId, finalText)
+
+                if (finalText.isBlank()) {
+                    Log.e(TAG, "Stream returned empty text, falling back")
+                    generateSummaryFallback(meetingId, transcript)
+                } else {
+                    parseAndSave(meetingId, finalText)
+                }
             } else {
-                Log.e(TAG, "Stream failed: ${streamResponse.code()}, falling back")
+                Log.e(TAG, "Stream failed with code: ${streamResponse.code()}, falling back")
                 generateSummaryFallback(meetingId, transcript)
             }
         } catch (e: Exception) {
@@ -143,7 +148,15 @@ class SummaryRepository @Inject constructor(
                 request = request
             )
 
-            if (response.error != null) throw Exception(response.error.message)
+            // Detailed logging to diagnose the issue
+            Log.d(TAG, "Fallback response received")
+            Log.d(TAG, "Candidates count: ${response.candidates?.size}")
+            Log.d(TAG, "Error code: ${response.error?.code}")
+            Log.d(TAG, "Error message: ${response.error?.message}")
+
+            if (response.error != null) {
+                throw Exception("${response.error.code}: ${response.error.message}")
+            }
 
             val rawText = response.candidates
                 ?.firstOrNull()
@@ -151,12 +164,15 @@ class SummaryRepository @Inject constructor(
                 ?.parts
                 ?.firstOrNull()
                 ?.text
-                ?.trim() ?: throw Exception("Empty response")
+                ?.trim() ?: throw Exception(
+                "Empty response - candidates: ${response.candidates?.size}"
+            )
 
+            Log.d(TAG, "Summary text received: ${rawText.take(200)}")
             streamingText.value = rawText
             parseAndSave(meetingId, rawText)
         } catch (e: Exception) {
-            Log.e(TAG, "Fallback also failed: ${e.message}")
+            Log.e(TAG, "Fallback failed with: ${e.message}")
             saveFallbackSummary(meetingId)
         }
     }

@@ -10,14 +10,14 @@ import retrofit2.http.Streaming
 
 interface GeminiApiService {
 
-    @POST("v1beta/models/gemini-2.0-flash:generateContent")
+    @POST("v1beta/models/gemini-2.5-flash:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
     ): GeminiResponse
 
     @Streaming
-    @POST("v1beta/models/gemini-2.0-flash:streamGenerateContent")
+    @POST("v1beta/models/gemini-2.5-flash:streamGenerateContent")
     suspend fun streamGenerateContent(
         @Query("key") apiKey: String,
         @Query("alt") alt: String,
